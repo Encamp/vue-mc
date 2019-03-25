@@ -1,7 +1,7 @@
 {
     "name": "@encamp/vue-mc",
     "version": "1.0.0",
-    "description": "",
+    "description": "fork of vue-mc",
     "license": "MIT",
     "main": "vue-mc.js",
     "module": "vue-mc.es.js",
@@ -27,7 +27,6 @@
     },
     "author": {
         "name": "Daniel Smedema",
-        "email": "djsmedes@gmail.com",
         "url": "https://github.com/djsmedes"
     },
     "dependencies": {
