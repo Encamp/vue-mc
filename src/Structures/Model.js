@@ -3,6 +3,7 @@ import Base             from './Base.js'
 import Collection       from './Collection.js'
 import ResponseError    from '../Errors/ResponseError.js'
 import ValidationError  from '../Errors/ValidationError.js'
+import {checkFilterCache, defineModelStore} from '../Vuex/module'
 import castArray from 'lodash/castArray'
 import cloneDeep from 'lodash/cloneDeep'
 import defaults from 'lodash/defaults'
@@ -43,6 +44,7 @@ const RESERVED = invert([
     '_reference',
     '_registry',
     '_uid',
+    '_store',
     'attributes',
     'collections',
     'deleting',
@@ -52,6 +54,7 @@ const RESERVED = invert([
     'memoized',
     'models',
     'saving',
+    'cached',
 ]);
 
 /**
@@ -83,7 +86,7 @@ const copyFrom = function(source, target, keys) {
             Vue.set(target, key, cloneDeep(value));
         }
     });
-}
+};
 
 /**
  * Base model class.
@@ -99,7 +102,46 @@ class Model extends Base {
      * @returns {Object} This model's saved, reference data.
      */
     get $() {
-        return this._reference;
+        return this._cachedReference || this._reference;
+    }
+    _setReference(data) {
+        if (this.store && this.identifier()) {
+            this.store.commit('$_vue-mc_' + this.getOption('storeKey') + '/UPDATE', {
+                identifier: this.identifier(),
+                reference: data,
+            });
+            Vue.set(this, '_reference', {})
+        } else {
+            Vue.set(this, '_reference', data)
+        }
+    }
+    _setReferenceSubset(data, attribute) {
+        if (this.store && this.identifier()) {
+            this._setReference(merge({}, this.$, pick(data, castArray(attribute))))
+        } else {
+            each(castArray(attribute), (attribute) => {
+                Vue.set(this._reference, attribute, get(data, attribute));
+            });
+        }
+    }
+
+    get isCached() {
+        return Boolean(this._cachedReference);
+    }
+
+    /**
+     * @returns {*} the cached _reference from vuex store, or a falsy value if there is none (could be null, '', or undefined)
+     * @private
+     */
+    get _cachedReference() {
+        return this.store && this.identifier() && get(
+            this.store,
+            [
+                'state',
+                '$_vue-mc_' + this.getOption('storeKey'),
+                this.identifier(),
+            ]
+        )
     }
 
     /**
@@ -121,6 +163,13 @@ class Model extends Base {
      */
     get errors() {
         return this.getErrors();
+    }
+
+    /**
+     * @returns {Object} the vuex store that was set in an option, if it's ready for use
+     */
+    get store() {
+        return this._store;
     }
 
     /**
@@ -150,6 +199,9 @@ class Model extends Base {
         // Assign all given model data to the model's attributes and reference.
         this.assign(attributes);
 
+        // Set up vuex integration if present
+        this.storeIntegrate();
+
         // Register the given collection (if any) to the model. This is so that
         // the model can be added to the collection automatically when it is
         // created on save, or removed on delete.
@@ -170,7 +222,7 @@ class Model extends Base {
 
         // Clone all attributes and their descriptors.
         copyFrom(this._attributes, attributes);
-        copyFrom(this._reference, reference);
+        copyFrom(this.$, reference);
 
         // Create a copy.
         let clone = new (this.constructor)();
@@ -284,6 +336,13 @@ class Model extends Base {
             // Whether this model should use mutated values for the attributes
             // in "save" request. This will not mutate the active state.
             mutateBeforeSave: true,
+
+
+            // the vuex store (optional)
+            store: null,
+
+            // the key in the vuex store to look under
+            storeKey: this.$class,
         });
     }
 
@@ -347,12 +406,14 @@ class Model extends Base {
      * Reverts all attributes back to their defaults, and completely removes all
      * attributes that don't have defaults. This will also sync the reference
      * attributes, and is not reversable.
+     *
+     * @returns {undefined}
      */
     clearAttributes() {
         let defaults = this.defaults();
 
         Vue.set(this, '_attributes', cloneDeep(defaults));
-        Vue.set(this, '_reference',  cloneDeep(defaults));
+        this._setReference(cloneDeep(defaults));
     }
 
     /**
@@ -404,11 +465,11 @@ class Model extends Base {
 
         // Reset specific attributes.
         if (attribute) {
-            copyFrom(this._reference, this._attributes, castArray(attribute));
+            copyFrom(this.$, this._attributes, castArray(attribute));
 
         // Reset all attributes if one or more specific ones were not given.
         } else {
-            copyFrom(this._reference, this._attributes);
+            copyFrom(this.$, this._attributes);
         }
 
         this.clearErrors();
@@ -472,12 +533,9 @@ class Model extends Base {
 
         // Sync either specific attributes or all attributes if none provided.
         if (isUndefined(attribute)) {
-            Vue.set(this, '_reference', active);
-
+            this._setReference(active);
         } else {
-            each(castArray(attribute), (attribute) => {
-                Vue.set(this._reference, attribute, get(active, attribute));
-            });
+            this._setReferenceSubset(active, attribute);
         }
 
         this.emit('sync');
@@ -609,7 +667,7 @@ class Model extends Base {
      * @returns {*} The value of the attribute or `fallback` if not found.
      */
     saved(attribute, fallback) {
-        return get(this._reference, attribute, fallback);
+        return get(this.$, attribute, fallback);
     }
 
     /**
@@ -755,6 +813,11 @@ class Model extends Base {
      * Called when a fetch request was successful.
      */
     onFetchSuccess(response) {
+        if (this.isCached) {
+            this.reset();
+            return;
+        }
+
         let attributes = response.getData();
 
         // A fetch request must receive *some* data in return.
@@ -1058,6 +1121,7 @@ class Model extends Base {
      * Called when a delete request was successful.
      */
     onDeleteSuccess(response) {
+        this.storeRemove();
         this.clear();
         this.removeFromAllCollections();
 
@@ -1090,6 +1154,10 @@ class Model extends Base {
             // that sometimes occur as a result of a double-click.
             if (this.loading) {
                 return resolve(Base.REQUEST_SKIP);
+            }
+
+            if (this.isCached) {
+                return resolve(Base.REQUEST_CACHED);
             }
 
             Vue.set(this, 'loading', true);
@@ -1169,6 +1237,29 @@ class Model extends Base {
             Vue.set(this, 'deleting', true);
             resolve(Base.REQUEST_CONTINUE);
         });
+    }
+
+    /**
+     * Called during initialization
+     *
+     * @returns {undefined}
+     */
+    storeIntegrate() {
+        Vue.set(this, '_store', defineModelStore(this.getOption('store'), this.getOption('storeKey')))
+    }
+
+    /**
+     * Called after deleting a model, but before unsetting its attributes
+     *   (identifier is needed to find and remove correct data from vuex store)
+     *
+     * @returns {undefined}
+     */
+    storeRemove() {
+        if (this.store && this.identifier()) {
+            this.store.commit('$_vue-mc_' + this.getOption('storeKey') + '/REMOVE', {
+                identifier: this.identifier(),
+            })
+        }
     }
 }
 

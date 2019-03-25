@@ -4,6 +4,7 @@ import Model            from './Model.js'
 import ResponseError    from '../Errors/ResponseError.js'
 import ValidationError  from '../Errors/ValidationError.js'
 import ProxyResponse    from '../HTTP/ProxyResponse.js'
+import { checkFilterCache} from '../Vuex/module'
 import countBy from 'lodash/countBy'
 import defaultsDeep from 'lodash/defaultsDeep'
 import each from 'lodash/each'
@@ -65,6 +66,8 @@ class Collection extends Base {
      */
     constructor(models = [], options = {}, attributes = {}) {
         super(options);
+        // storeKey default has to be set after this.model is set
+        this.setOption('storeKey', this.getOption('storeKey') || this.createModel().$class);
 
         Vue.set(this, 'models', []);      // Model store.
         Vue.set(this, '_attributes', {}); // Property store.
@@ -161,6 +164,15 @@ class Collection extends Base {
             // Whether this collection should send model identifiers as JSON
             // in the body of a delete request, instead of a query parameter.
             useDeleteBody: true,
+
+            // the vuex store (optional)
+            store: null,
+
+            // the key in the vuex store to look under for the model or collection
+            storeKey: null,
+
+            // The filter to run on the vuex store (if there is one) to get the elements of this collection
+            storeFilter: {},
         });
     }
 
@@ -303,6 +315,9 @@ class Collection extends Base {
      */
     onAdd(model) {
         model.registerCollection(this);
+        if (!this.isCached) {
+            model.sync();
+        }
         this.addModelToRegistry(model);
         this.emit('add', {model});
     }
@@ -981,11 +996,14 @@ class Collection extends Base {
      * Called when a fetch request was successful.
      *
      * @param {Object} response
+     * @param {boolean} cached
      */
     onFetchSuccess(response) {
-        let models = this.getModelsFromResponse(response);
+        let models = this.isCached
+            ? this.getCachedModels()
+            : this.getModelsFromResponse(response);
 
-        // There is no sensible alternative to an array here, so anyting else
+        // There is no sensible alternative to an array here, so anything else
         // is considered an exception that indicates an unexpected state.
         if ( ! isArray(models)) {
             throw new ResponseError('Expected an array of models in fetch response');
@@ -998,6 +1016,11 @@ class Collection extends Base {
         // Replace all current models with the fetched ones.
         } else {
             this.replace(models);
+        }
+
+        if (this.storeCacheFilter) {
+            this.storeCacheFilter();
+            Vue.delete(this, 'storeCacheFilter');
         }
 
         Vue.set(this, 'loading', false);
@@ -1033,12 +1056,27 @@ class Collection extends Base {
                 return resolve(Base.REQUEST_SKIP);
             }
 
+            if (this.isCached) {
+                return resolve(Base.REQUEST_CACHED);
+            }
+
             // Because we're fetching new data, we can assume that this collection
             // is now loading. This allows the template to indicate a loading state.
             Vue.set(this, 'loading', true);
-            resolve(Base.REQUEST_CONTINUE);
-            return;
+            return resolve(Base.REQUEST_CONTINUE);
         });
+    }
+
+    get isCached() {
+        if (this.storeCacheFilter || !this.getOption('store')) {
+            return false;
+        }
+        let cacheFilter = checkFilterCache(this.getOption('storeKey'), this.getOption('storeFilter'))
+        if (cacheFilter) {
+            Vue.set(this, 'storeCacheFilter', cacheFilter);
+            return false;
+        }
+        return true;
     }
 
     /**
@@ -1186,6 +1224,11 @@ class Collection extends Base {
      */
     toArray() {
         return this.map(model => model.toJSON());
+    }
+
+    getCachedModels() {
+        let objects = this.getOption('store').state['$_vue-mc_' + this.getOption('storeKey')];
+        return filter(Object.values(objects), this.getOption('storeFilter'));
     }
 }
 
