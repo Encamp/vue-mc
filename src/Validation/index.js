@@ -48,6 +48,7 @@ import {
     isBefore as isBeforeDate,
     isValid  as isValidDate,
     parse    as parseDate,
+    parseISO as parseISODate,
     toDate   as toDate,
 } from "date-fns";
 
@@ -306,7 +307,10 @@ export const after = function(date) {
     return rule({
         name: 'after',
         data: {date},
-        test: (value) => isAfterDate(value, date),
+        test: (value) => isAfterDate(
+            isString(value) ? parseISODate(value) : value,
+            isString(date) ? parseISODate(date) : date,
+        ),
     })
 }
 
@@ -362,7 +366,10 @@ export const before = function(date) {
     return rule({
         name: 'before',
         data: {date},
-        test: (value) => isBeforeDate(value, date),
+        test: (value) => isBeforeDate(
+            isString(value) ? parseISODate(value) : value,
+            isString(date) ? parseISODate(date) : date
+        ),
     })
 }
 
@@ -370,14 +377,14 @@ export const before = function(date) {
  * Checks if a value is between a given minimum or maximum, inclusive by default.
  */
 export const between = function(min, max, inclusive = true) {
-    let _min = +(isString(min) ? toDate(min) : min);
-    let _max = +(isString(max) ? toDate(max) : max);
+    let _min = +(isString(min) ? parseISODate(min) : min);
+    let _max = +(isString(max) ? parseISODate(max) : max);
 
     return rule({
         data: {min, max},
         name: inclusive ? 'between_inclusive' : 'between',
         test: (value) => {
-            let _value = +(isString(value) ? toDate(value) : value);
+            let _value = +(isString(value) ? parseISODate(value) : value);
 
             return inclusive
                 ? greaterOrEqualTo(_value, _min) && lessOrEqualTo(_value, _max)
@@ -408,7 +415,9 @@ export const creditcard = rule({
  */
 export const date = rule({
     name: 'date',
-    test: (value) => isValidDate(toDate(value)),
+    test: (value) => isValidDate(
+        isString(value) ? parseISODate(value) : toDate(value)
+    ),
 })
 
 

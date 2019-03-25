@@ -1,6 +1,5 @@
 import Vue              from 'vue'
 import Base             from './Base.js'
-import Collection       from './Collection.js'
 import ResponseError    from '../Errors/ResponseError.js'
 import ValidationError  from '../Errors/ValidationError.js'
 import {checkFilterCache, defineModelStore} from '../Vuex/module'
@@ -45,6 +44,7 @@ const RESERVED = invert([
     '_registry',
     '_uid',
     '_store',
+    '_storeKey',
     'attributes',
     'collections',
     'deleting',
@@ -106,7 +106,7 @@ class Model extends Base {
     }
     _setReference(data) {
         if (this.store && this.identifier()) {
-            this.store.commit('$_vue-mc_' + this.getOption('storeKey') + '/UPDATE', {
+            this.store.commit('$_vue-mc_' + this._storeKey + '/UPDATE', {
                 identifier: this.identifier(),
                 reference: data,
             });
@@ -138,7 +138,7 @@ class Model extends Base {
             this.store,
             [
                 'state',
-                '$_vue-mc_' + this.getOption('storeKey'),
+                '$_vue-mc_' + this._storeKey,
                 this.identifier(),
             ]
         )
@@ -181,6 +181,7 @@ class Model extends Base {
      */
     constructor(attributes = {}, collection = null, options = {}) {
         super(options);
+        this._storeKey = this.getOption('storeKey') || this.$class;
 
         Vue.set(this, '_collections', {});  // Collections that contain this model.
         Vue.set(this, '_reference',   {});  // Saved attribute state.
@@ -340,9 +341,6 @@ class Model extends Base {
 
             // the vuex store (optional)
             store: null,
-
-            // the key in the vuex store to look under
-            storeKey: this.$class,
         });
     }
 
@@ -1245,7 +1243,7 @@ class Model extends Base {
      * @returns {undefined}
      */
     storeIntegrate() {
-        Vue.set(this, '_store', defineModelStore(this.getOption('store'), this.getOption('storeKey')))
+        Vue.set(this, '_store', defineModelStore(this.getOption('store'), this._storeKey))
     }
 
     /**
@@ -1256,7 +1254,7 @@ class Model extends Base {
      */
     storeRemove() {
         if (this.store && this.identifier()) {
-            this.store.commit('$_vue-mc_' + this.getOption('storeKey') + '/REMOVE', {
+            this.store.commit('$_vue-mc_' + this._storeKey + '/REMOVE', {
                 identifier: this.identifier(),
             })
         }

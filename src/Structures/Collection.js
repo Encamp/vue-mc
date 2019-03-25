@@ -36,7 +36,7 @@ import toSafeInteger from 'lodash/toSafeInteger'
 import unset from 'lodash/unset'
 import values from 'lodash/values'
 
-    /**
+/**
  * Used as a marker to indicate that pagination is not enabled.
  */
 const NO_PAGE = null;
@@ -66,8 +66,9 @@ class Collection extends Base {
      */
     constructor(models = [], options = {}, attributes = {}) {
         super(options);
-        // storeKey default has to be set after this.model is set
-        this.setOption('storeKey', this.getOption('storeKey') || this.createModel().$class);
+        // has to be set after this.model is set, so there can be a default using model's name
+        this._storeKey = this.getOption('storeKey') ||
+            (Object.getPrototypeOf(this.model())).constructor.name;
 
         Vue.set(this, 'models', []);      // Model store.
         Vue.set(this, '_attributes', {}); // Property store.
@@ -93,8 +94,7 @@ class Collection extends Base {
      * @returns {Collection}
      */
     clone() {
-        return new (this.constructor)
-            (this.getModels(), this.getOptions(), this.getAttributes());
+        return new (this.constructor)(this.getModels(), this.getOptions(), this.getAttributes());
     }
 
     /**
@@ -167,9 +167,6 @@ class Collection extends Base {
 
             // the vuex store (optional)
             store: null,
-
-            // the key in the vuex store to look under for the model or collection
-            storeKey: null,
 
             // The filter to run on the vuex store (if there is one) to get the elements of this collection
             storeFilter: {},
@@ -1071,7 +1068,7 @@ class Collection extends Base {
         if (this.storeCacheFilter || !this.getOption('store')) {
             return false;
         }
-        let cacheFilter = checkFilterCache(this.getOption('storeKey'), this.getOption('storeFilter'))
+        let cacheFilter = checkFilterCache(this._storeKey, this.getOption('storeFilter'));
         if (cacheFilter) {
             Vue.set(this, 'storeCacheFilter', cacheFilter);
             return false;
@@ -1227,7 +1224,7 @@ class Collection extends Base {
     }
 
     getCachedModels() {
-        let objects = this.getOption('store').state['$_vue-mc_' + this.getOption('storeKey')];
+        let objects = this.getOption('store').state['$_vue-mc_' + this._storeKey];
         return filter(Object.values(objects), this.getOption('storeFilter'));
     }
 }
