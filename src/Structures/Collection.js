@@ -67,8 +67,7 @@ class Collection extends Base {
     constructor(models = [], options = {}, attributes = {}) {
         super(options);
         // has to be set after this.model is set, so there can be a default using model's name
-        this._storeKey = this.getOption('storeKey') ||
-            (Object.getPrototypeOf(this.model())).constructor.name;
+        this._storeKey = this.getOption('storeKey') || this.model().name;
 
         Vue.set(this, 'models', []);      // Model store.
         Vue.set(this, '_attributes', {}); // Property store.
