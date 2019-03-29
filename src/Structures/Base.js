@@ -478,18 +478,18 @@ class Base {
         return new Promise((resolve, reject) => {
             return onRequest().then((status) => {
                 switch (status) {
-                    case REQUEST_CONTINUE:
-                        break;
-                    case REQUEST_SKIP:
-                        return;
-                    case REQUEST_REDUNDANT: // Skip, but consider it a success.
-                        onSuccess(null);
-                        resolve(null);
-                        return;
-                    case REQUEST_CACHED:
-                        onSuccess(null);
-                        resolve(null);
-                        return;
+                case REQUEST_CONTINUE:
+                    break;
+                case REQUEST_SKIP:
+                    return;
+                case REQUEST_REDUNDANT: // Skip, but consider it a success.
+                    onSuccess(null);
+                    resolve(null);
+                    return;
+                case REQUEST_CACHED:
+                    onSuccess(null);
+                    resolve(null);
+                    return;
                 }
 
                 // Support passing the request configuration as a function, to allow
@@ -555,13 +555,14 @@ class Base {
      * @returns {Promise}
      */
     save(options = {}) {
-        let config = () => defaults(options, {
+        let config = () => defaults(isFunction(options) ? options() : options, {
             url     : this.getSaveURL(),
             method  : this.getSaveMethod(),
             data    : this.getSaveData(),
             params  : this.getSaveQuery(),
             headers : this.getSaveHeaders(),
         });
+
 
         return this.request(
             config,
@@ -573,6 +574,10 @@ class Base {
 
     /**
      * Converts given data to FormData for uploading.
+     *   null would be converted to the string 'null' by default which is almost
+     *   certainly not what you want, so we don't include them. If you need to
+     *   include blank data, ensure that the data you pass in has empty strings
+     *   instead of nulls.
      *
      * @param  {Object} data
      * @returns {FormData}
@@ -581,7 +586,9 @@ class Base {
         let form = new FormData();
 
         each(data, (value, key) => {
-            form.append(key, value)
+            if (value !== null) {
+                form.append(key, value)
+            }
         });
 
         return form;
@@ -599,11 +606,12 @@ class Base {
      * @returns {Promise}
      */
     upload(options = {}) {
-        let data = defaultTo(options.data, this.getSaveData());
-
-        let config = () => assign(options, {
-            data: this.convertObjectToFormData(data),
-        });
+        let config = () => {
+            let data = defaultTo(options.data, this.getSaveData());
+            return assign(options, {
+                data: this.convertObjectToFormData(data),
+            });
+        };
 
         return this.save(config);
     }
