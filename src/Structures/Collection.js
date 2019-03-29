@@ -1225,7 +1225,7 @@ class Collection extends Base {
 
     getCachedModels() {
         let objects = this.getOption('store').state['$_vue-mc_' + this._storeKey];
-        return filter(Object.values(objects), this.getOption('storeFilter'));
+        return filter(values(objects), this.getOption('storeFilter'));
     }
 }
 
