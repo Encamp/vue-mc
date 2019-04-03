@@ -992,7 +992,6 @@ class Collection extends Base {
      * Called when a fetch request was successful.
      *
      * @param {Object} response
-     * @param {boolean} cached
      */
     onFetchSuccess(response) {
         let models = this.isCached

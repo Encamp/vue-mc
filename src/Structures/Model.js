@@ -1120,6 +1120,7 @@ class Model extends Base {
      */
     onDeleteSuccess(response) {
         this.storeRemove();
+
         this.clear();
         this.removeFromAllCollections();
 
@@ -1254,6 +1255,7 @@ class Model extends Base {
      */
     storeRemove() {
         if (this.store && this.identifier()) {
+            this.emit('storeRemove', {error: null});
             this.store.commit('$_vue-mc_' + this._storeKey + '/REMOVE', {
                 identifier: this.identifier(),
             })
