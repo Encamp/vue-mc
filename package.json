@@ -1,6 +1,6 @@
 {
     "name": "@encamp/vue-mc",
-    "version": "1.0.3",
+    "version": "1.1.0",
     "description": "fork of vue-mc",
     "license": "MIT",
     "main": "vue-mc.js",
