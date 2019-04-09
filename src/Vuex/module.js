@@ -1,5 +1,5 @@
 import Vue from 'vue'
-import merge from 'lodash/merge'
+import assign from 'lodash/assign'
 import some from 'lodash/some'
 import matches from 'lodash/matches'
 
@@ -15,7 +15,7 @@ export const defineModelStore = (() => {
                     mutations: {
                         UPDATE: (state, payload) => {
                             let { identifier, reference } = payload;
-                            let newState = merge({}, state[identifier], reference);
+                            let newState = assign({}, state[identifier], reference);
                             Vue.set(state, identifier, newState);
                         },
                         REMOVE: (state, payload) => {
