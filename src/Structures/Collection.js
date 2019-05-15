@@ -4,7 +4,7 @@ import Model            from './Model.js'
 import ResponseError    from '../Errors/ResponseError.js'
 import ValidationError  from '../Errors/ValidationError.js'
 import ProxyResponse    from '../HTTP/ProxyResponse.js'
-import { checkFilterCache} from '../Vuex/module'
+import { checkFilterCache, clearFilterCache } from '../Vuex/module'
 import countBy from 'lodash/countBy'
 import defaultsDeep from 'lodash/defaultsDeep'
 import each from 'lodash/each'
@@ -1224,6 +1224,10 @@ class Collection extends Base {
     getCachedModels() {
         let objects = this.getOption('store').state['$_vue-mc_' + this._storeKey];
         return filter(values(objects), this.getOption('storeFilter'));
+    }
+
+    forgetCache() {
+        clearFilterCache(this._storeKey);
     }
 }
 
