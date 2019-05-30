@@ -18,6 +18,12 @@ export const defineModelStore = (() => {
                             let newState = assign({}, state[identifier], reference);
                             Vue.set(state, identifier, newState);
                         },
+                        UPDATE_MANY: (state, payload) => {
+                            let newState = {};
+                            for (let { identifier, reference } of payload) {
+                                Vue.set(state, identifier, assign({}, state[identifier], reference))
+                            }
+                        },
                         REMOVE: (state, payload) => {
                             let { identifier } = payload;
                             Vue.delete(state, identifier)

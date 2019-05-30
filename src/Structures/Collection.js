@@ -311,9 +311,6 @@ class Collection extends Base {
      */
     onAdd(model) {
         model.registerCollection(this);
-        if (!this.isCached) {
-            model.sync();
-        }
         this.addModelToRegistry(model);
         this.emit('add', {model});
     }
@@ -331,16 +328,25 @@ class Collection extends Base {
      *
      * @returns {Model|Array} The added model or array of added models.
      */
-    add(model = {}) {
+    add(model = {}, wasFromArray = false) {
 
         // If given an array, assume an array of models and add them all.
         if (isArray(model)) {
-            return filter(map(model, this.add));
+            if (!model.length) {
+                return [];
+            }
+            let toReturn = filter(map(model, m => this.add(m, true)));
+            let store = toReturn[0].store;
+            if (store) {
+                let toCache = toReturn.map(oneModel => ({identifier: oneModel.identifier(), reference: oneModel.$}));
+                toReturn[0].store.commit('$_vue-mc_' + this._storeKey + '/UPDATE_MANY', toCache);
+            }
+            return toReturn;
         }
 
         // Objects should be converted to model instances first, then added.
         if (isPlainObject(model)) {
-            return this.add(this.createModel(model));
+            return this.add(this.createModel(model), wasFromArray);
         }
 
         // This is also just to catch a potential bug. All models should have
@@ -357,6 +363,9 @@ class Collection extends Base {
         // Add the model instance to this collection.
         this.models.push(model);
         this.onAdd(model);
+        if (!wasFromArray && model.store && !model.isCached) {
+            model.sync();
+        }
 
         // We're assuming that the collection is not loading once a model is added.
         Vue.set(this, 'loading', false);
