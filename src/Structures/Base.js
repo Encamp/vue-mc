@@ -477,21 +477,6 @@ class Base {
     request(config, onRequest, onSuccess, onFailure) {
         return new Promise((resolve, reject) => {
             return onRequest().then((status) => {
-                switch (status) {
-                case REQUEST_CONTINUE:
-                    break;
-                case REQUEST_SKIP:
-                    return;
-                case REQUEST_REDUNDANT: // Skip, but consider it a success.
-                    onSuccess(null);
-                    resolve(null);
-                    return;
-                case REQUEST_CACHED:
-                    onSuccess(null);
-                    resolve(null);
-                    return;
-                }
-
                 // Support passing the request configuration as a function, to allow
                 // for deferred resolution of certain values that may have changed
                 // during the call to "onRequest".
@@ -499,11 +484,30 @@ class Base {
                     config = config();
                 }
 
+                if(config.ignoreCache && status !== REQUEST_SKIP) {
+                    status = REQUEST_CONTINUE;  // Short circuit into a forced query
+                }
+
+                switch (status) {
+                case REQUEST_CONTINUE:
+                    break;
+                case REQUEST_SKIP:
+                    return;
+                case REQUEST_REDUNDANT: // Skip, but consider it a success.
+                    onSuccess(null, status);
+                    resolve(null);
+                    return;
+                case REQUEST_CACHED:
+                    onSuccess(null, status);
+                    resolve(null);
+                    return;
+                }
+
                 // Make the request.
                 return this.getRequest(config)
                     .send()
                     .then((response) => {
-                        onSuccess(response);
+                        onSuccess(response, status);
                         resolve(response);
                     })
                     .catch((error) => {
@@ -523,6 +527,7 @@ class Base {
      * @param {options.url}         Fetch URL
      * @param {options.params}      Query params
      * @param {options.headers}     Query headers
+     * @param {options.ignoreCache} Use/ignore cache on fetch
      *
      * @returns {Promise}
      */
@@ -532,6 +537,7 @@ class Base {
             method  : this.getFetchMethod(),
             params  : this.getFetchQuery(),
             headers : this.getFetchHeaders(),
+            ignoreCache: false,
         });
 
         return this.request(
