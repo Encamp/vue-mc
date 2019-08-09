@@ -1002,8 +1002,8 @@ class Collection extends Base {
      *
      * @param {Object} response
      */
-    onFetchSuccess(response) {
-        let models = this.isCached
+    onFetchSuccess(response, status) {
+        let models = Base.REQUEST_CACHED === status
             ? this.getCachedModels()
             : this.getModelsFromResponse(response);
 
